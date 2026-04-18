@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voronka Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0f;
+    --surface: #1a1a1a;
+    --surface2: #242424;
+    --border: #333;
+    --text: #e8e8e8;
+    --text-dim: #888;
+    --accent: #7c4dff;
+    --accent-h: #9a6fff;
+    --green: #4caf50;
+    --red: #f44336;
+    --yellow: #ff9800;
+    --blue: #2196f3;
+  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; min-height: 100vh; }
+  a { color: var(--accent); text-decoration: none; }
+
+  /* Layout */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 100; }
+  .header h1 { font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
+  .token-wrap { display: flex; align-items: center; gap: 8px; }
+  .token-wrap label { color: var(--text-dim); font-size: 12px; }
+  .token-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; width: 200px; }
+  .token-input:focus { outline: none; border-color: var(--accent); }
+  .token-status { font-size: 11px; padding: 3px 8px; border-radius: 4px; }
+  .token-status.ok { background: #1b3a1c; color: var(--green); }
+  .token-status.err { background: #3a1b1b; color: var(--red); }
+
+  .tabs { display: flex; gap: 2px; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; }
+  .tab { padding: 14px 20px; cursor: pointer; color: var(--text-dim); font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; transition: color 0.15s, border-color 0.15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .content { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-header h2 { font-size: 15px; font-weight: 600; }
+
+  /* Buttons */
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: opacity 0.15s; }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-danger { background: var(--red); color: #fff; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+
+  /* Forms */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid.single { grid-template-columns: 1fr; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label.field-label { font-size: 12px; color: var(--text-dim); font-weight: 500; }
+  input, textarea, select {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    padding: 8px 10px; border-radius: 6px; font-size: 13px; width: 100%;
+    font-family: inherit;
+  }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 72px; }
+  select option { background: var(--surface2); }
+
+  /* Tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 8px 12px; color: var(--text-dim); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  /* Badges */
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .badge-pending { background: #332a00; color: var(--yellow); }
+  .badge-paid { background: #003320; color: var(--green); }
+  .badge-fulfilled { background: #001a33; color: var(--blue); }
+  .badge-cancelled { background: #330000; color: var(--red); }
+
+  /* Image thumbnails */
+  .thumb { width: 48px; height: 48px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); }
+  .thumbs { display: flex; gap: 4px; flex-wrap: wrap; }
+
+  /* Upload area */
+  .upload-area { border: 2px dashed var(--border); border-radius: 6px; padding: 16px; text-align: center; cursor: pointer; transition: border-color 0.15s; color: var(--text-dim); font-size: 12px; }
+  .upload-area:hover, .upload-area.drag { border-color: var(--accent); color: var(--text); }
+  .upload-area input[type=file] { display: none; }
+  .upload-preview { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .upload-preview-item { position: relative; }
+  .upload-preview-item img { width: 64px; height: 64px; object-fit: cover; border-radius: 4px; border: 1px solid var(--border); }
+  .upload-preview-item .remove-img { position: absolute; top: -4px; right: -4px; background: var(--red); color: white; border: none; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  .modal h3 { font-size: 15px; font-weight: 600; margin-bottom: 20px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  /* Misc */
+  .loading { color: var(--text-dim); font-size: 13px; padding: 20px 0; text-align: center; }
+  .error-msg { background: #3a1b1b; color: var(--red); padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
+  .success-msg { background: #1b3a1c; color: var(--green); padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
+  .text-dim { color: var(--text-dim); }
+  .flex { display: flex; }
+  .gap-2 { gap: 8px; }
+  .items-center { align-items: center; }
+  .price { font-family: 'SF Mono', 'Fira Code', monospace; }
+  .stock-low { color: var(--yellow); }
+  .stock-ok { color: var(--green); }
+  .stock-zero { color: var(--red); }
+  .order-items-list { font-size: 12px; color: var(--text-dim); }
+
+  .inline-status { display: flex; align-items: center; gap: 6px; }
+  .inline-status select { padding: 3px 6px; font-size: 12px; width: auto; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Voronka Admin</h1>
+  <div class="token-wrap">
+    <label>Admin Token</label>
+    <input class="token-input" type="password" id="adminToken" placeholder="X-Admin-Token" autocomplete="off">
+    <span class="token-status" id="tokenStatus"></span>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="merch">Merch</div>
+  <div class="tab" data-tab="orders">Orders</div>
+  <div class="tab" data-tab="events">Events</div>
+  <div class="tab" data-tab="users">Users</div>
+</div>
+
+<div class="content">
+  <div id="tab-merch" class="tab-panel">
+    <div class="card">
+      <div class="card-header">
+        <h2>Merch Items</h2>
+        <button class="btn btn-primary" onclick="openMerchModal()">+ New Item</button>
+      </div>
+      <div id="merch-msg"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Image</th><th>Name</th><th>Price</th><th>Stock</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="merch-tbody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-orders" class="tab-panel" style="display:none">
+    <div class="card">
+      <div class="card-header">
+        <h2>Orders</h2>
+        <button class="btn btn-secondary btn-sm" onclick="loadOrders()">↻ Refresh</button>
+      </div>
+      <div id="orders-msg"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Customer</th><th>Email</th><th>Total</th><th>Status</th><th>Items</th>
+          </tr></thead>
+          <tbody id="orders-tbody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-events" class="tab-panel" style="display:none">
+    <div class="card">
+      <div class="card-header">
+        <h2>Events</h2>
+        <button class="btn btn-primary" onclick="openEventModal()">+ New Event</button>
+      </div>
+      <div id="events-msg"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Image</th><th>Title</th><th>Date</th><th>Type</th><th>Location</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="events-tbody"><tr><td colspan="6" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-users" class="tab-panel" style="display:none">
+    <div class="card">
+      <div class="card-header">
+        <h2>Registered Users</h2>
+        <button class="btn btn-secondary btn-sm" onclick="loadUsers()">↻ Refresh</button>
+      </div>
+      <div id="users-msg"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>#</th><th>Name</th><th>Telegram</th><th>TG ID</th><th>Registered</th>
+          </tr></thead>
+          <tbody id="users-tbody"><tr><td colspan="5" class="loading">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Merch Modal -->
+<div class="modal-overlay" id="merch-modal" style="display:none" onclick="closeOnOverlay(event,'merch-modal')">
+  <div class="modal">
+    <h3 id="merch-modal-title">New Merch Item</h3>
+    <div id="merch-form-msg"></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="field-label">Name *</label>
+        <input type="text" id="m-name" placeholder="T-Shirt Black">
+      </div>
+      <div class="form-group">
+        <label class="field-label">Price (UAH) *</label>
+        <input type="number" id="m-price" placeholder="499" min="0" step="1">
+      </div>
+      <div class="form-group full">
+        <label class="field-label">Description</label>
+        <textarea id="m-desc" placeholder="Optional description"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="field-label">Stock *</label>
+        <input type="number" id="m-stock" placeholder="10" min="0" step="1">
+      </div>
+      <div class="form-group full">
+        <label class="field-label">Images</label>
+        <div class="upload-area" id="m-upload-area" onclick="document.getElementById('m-file-input').click()">
+          <input type="file" id="m-file-input" multiple accept="image/*" onchange="handleMerchFiles(this.files)">
+          Click to upload images (jpeg, png, gif, webp)
+        </div>
+        <div class="upload-preview" id="m-image-preview"></div>
+        <div id="m-image-urls" style="display:none"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('merch-modal')">Cancel</button>
+      <button class="btn btn-primary" id="merch-submit-btn" onclick="submitMerch()">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Event Modal -->
+<div class="modal-overlay" id="event-modal" style="display:none" onclick="closeOnOverlay(event,'event-modal')">
+  <div class="modal">
+    <h3 id="event-modal-title">New Event</h3>
+    <div id="event-form-msg"></div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="field-label">Title *</label>
+        <input type="text" id="e-title" placeholder="Summer Concert">
+      </div>
+      <div class="form-group">
+        <label class="field-label">Date *</label>
+        <input type="date" id="e-date">
+      </div>
+      <div class="form-group">
+        <label class="field-label">Type</label>
+        <select id="e-type">
+          <option value="concert">Concert</option>
+          <option value="meetup">Meetup</option>
+          <option value="workshop">Workshop</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="field-label">Location</label>
+        <input type="text" id="e-location" placeholder="Kyiv, Bel Etage">
+      </div>
+      <div class="form-group full">
+        <label class="field-label">Description</label>
+        <textarea id="e-desc" placeholder="Event details…"></textarea>
+      </div>
+      <div class="form-group full">
+        <label class="field-label">Image</label>
+        <div class="upload-area" id="e-upload-area" onclick="document.getElementById('e-file-input').click()">
+          <input type="file" id="e-file-input" accept="image/*" onchange="handleEventFile(this.files)">
+          Click to upload image
+        </div>
+        <div class="upload-preview" id="e-image-preview"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal('event-modal')">Cancel</button>
+      <button class="btn btn-primary" id="event-submit-btn" onclick="submitEvent()">Create</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+const API = '/api/v1';
+let adminToken = localStorage.getItem('adminToken') || '';
+let editingMerch = null;  // null = create, uuid string = edit
+let editingEvent = null;
+let merchImageURLs = [];   // accumulated uploaded image URLs for merch form
+let eventImageURL = '';    // uploaded image URL for event form
+
+// ─── Token handling ──────────────────────────────────────────────────────────
+const tokenInput = document.getElementById('adminToken');
+const tokenStatus = document.getElementById('tokenStatus');
+
+tokenInput.value = adminToken;
+
+function updateTokenStatus(ok) {
+  tokenStatus.textContent = ok ? '✓ ok' : '✗ invalid';
+  tokenStatus.className = 'token-status ' + (ok ? 'ok' : 'err');
+}
+
+tokenInput.addEventListener('change', () => {
+  adminToken = tokenInput.value.trim();
+  localStorage.setItem('adminToken', adminToken);
+  tokenStatus.textContent = '';
+  loadActiveTab();
+});
+
+// ─── Tabs ────────────────────────────────────────────────────────────────────
+const tabs = document.querySelectorAll('.tab');
+let activeTab = 'merch';
+
+tabs.forEach(t => t.addEventListener('click', () => {
+  activeTab = t.dataset.tab;
+  tabs.forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  document.getElementById('tab-' + activeTab).style.display = '';
+  loadActiveTab();
+}));
+
+function loadActiveTab() {
+  if (activeTab === 'merch') loadMerch();
+  else if (activeTab === 'orders') loadOrders();
+  else if (activeTab === 'events') loadEvents();
+  else if (activeTab === 'users') loadUsers();
+}
+
+// ─── Fetch helpers ────────────────────────────────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const headers = { 'X-Admin-Token': adminToken, ...opts.headers };
+  if (!(opts.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+  const res = await fetch(API + path, { ...opts, headers });
+  if (res.status === 401 || res.status === 403) {
+    updateTokenStatus(false);
+    throw new Error('Invalid admin token');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  updateTokenStatus(true);
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function uploadFile(file) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const headers = { 'X-Admin-Token': adminToken };
+  const res = await fetch(API + '/admin/upload', { method: 'POST', headers, body: fd });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'upload failed');
+  }
+  const data = await res.json();
+  return data.url;
+}
+
+function fmtPrice(cents) { return '₴' + (cents / 100).toFixed(2); }
+function fmtDate(iso) { return iso ? new Date(iso).toLocaleDateString('uk-UA') : '—'; }
+function fmtDateTime(iso) { return iso ? new Date(iso).toLocaleString('uk-UA') : '—'; }
+
+function showMsg(id, msg, isError) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<div class="${isError ? 'error-msg' : 'success-msg'}">${escHtml(msg)}</div>`;
+  if (!isError) setTimeout(() => { el.innerHTML = ''; }, 3000);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── MERCH ────────────────────────────────────────────────────────────────────
+async function loadMerch() {
+  const tbody = document.getElementById('merch-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';
+  try {
+    const items = await apiFetch('/admin/merch');
+    if (!items || !items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-dim" style="padding:16px">No items yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = items.map(it => `
+      <tr>
+        <td>${it.ImageURLs && it.ImageURLs.length ? `<div class="thumbs">${it.ImageURLs.slice(0,3).map(u=>`<img class="thumb" src="${escHtml(u)}" alt="">`).join('')}</div>` : '<span class="text-dim">—</span>'}</td>
+        <td><strong>${escHtml(it.Name)}</strong><div class="text-dim" style="font-size:11px;margin-top:2px">${escHtml(it.Description||'')}</div></td>
+        <td class="price">${fmtPrice(it.PriceCents)}</td>
+        <td class="${it.Stock === 0 ? 'stock-zero' : it.Stock <= 3 ? 'stock-low' : 'stock-ok'}">${it.Stock}</td>
+        <td>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary btn-sm" onclick="openMerchModal(${JSON.stringify(it)})">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteMerch('${it.ID}', '${escHtml(it.Name)}')">Delete</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="error-msg">${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+function openMerchModal(item) {
+  editingMerch = item ? item.ID : null;
+  merchImageURLs = item && item.ImageURLs ? [...item.ImageURLs] : [];
+  document.getElementById('merch-modal-title').textContent = item ? 'Edit Merch Item' : 'New Merch Item';
+  document.getElementById('merch-submit-btn').textContent = item ? 'Save' : 'Create';
+  document.getElementById('m-name').value = item ? item.Name : '';
+  document.getElementById('m-desc').value = item ? (item.Description || '') : '';
+  document.getElementById('m-price').value = item ? (item.PriceCents / 100) : '';
+  document.getElementById('m-stock').value = item !== undefined ? item.Stock : '';
+  document.getElementById('m-file-input').value = '';
+  document.getElementById('merch-form-msg').innerHTML = '';
+  renderMerchPreviews();
+  document.getElementById('merch-modal').style.display = 'flex';
+}
+
+function renderMerchPreviews() {
+  const preview = document.getElementById('m-image-preview');
+  preview.innerHTML = merchImageURLs.map((url, i) => `
+    <div class="upload-preview-item">
+      <img src="${escHtml(url)}" alt="">
+      <button class="remove-img" onclick="removeMerchImg(${i})">×</button>
+    </div>`).join('');
+}
+
+function removeMerchImg(i) {
+  merchImageURLs.splice(i, 1);
+  renderMerchPreviews();
+}
+
+async function handleMerchFiles(files) {
+  const btn = document.getElementById('merch-submit-btn');
+  btn.disabled = true;
+  try {
+    for (const f of files) {
+      const url = await uploadFile(f);
+      merchImageURLs.push(url);
+    }
+    renderMerchPreviews();
+  } catch(e) {
+    showMsg('merch-form-msg', e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitMerch() {
+  const name = document.getElementById('m-name').value.trim();
+  const priceStr = document.getElementById('m-price').value;
+  const stockStr = document.getElementById('m-stock').value;
+
+  if (!name) return showMsg('merch-form-msg', 'Name is required', true);
+  if (!priceStr) return showMsg('merch-form-msg', 'Price is required', true);
+  if (stockStr === '') return showMsg('merch-form-msg', 'Stock is required', true);
+
+  const priceCents = Math.round(parseFloat(priceStr) * 100);
+  const stock = parseInt(stockStr, 10);
+
+  const body = editingMerch
+    ? {
+        Name: name || undefined,
+        Description: document.getElementById('m-desc').value || undefined,
+        PriceCents: priceCents,
+        Stock: stock,
+        ImageURLs: merchImageURLs,
+      }
+    : {
+        Name: name,
+        Description: document.getElementById('m-desc').value,
+        PriceCents: priceCents,
+        Stock: stock,
+        ImageURLs: merchImageURLs,
+      };
+
+  try {
+    if (editingMerch) {
+      await apiFetch('/admin/merch/' + editingMerch, { method: 'PUT', body: JSON.stringify(body) });
+      showMsg('merch-msg', 'Item updated', false);
+    } else {
+      await apiFetch('/admin/merch', { method: 'POST', body: JSON.stringify(body) });
+      showMsg('merch-msg', 'Item created', false);
+    }
+    closeModal('merch-modal');
+    loadMerch();
+  } catch(e) {
+    showMsg('merch-form-msg', e.message, true);
+  }
+}
+
+async function deleteMerch(id, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+  try {
+    await apiFetch('/admin/merch/' + id, { method: 'DELETE' });
+    showMsg('merch-msg', 'Item deleted', false);
+    loadMerch();
+  } catch(e) {
+    showMsg('merch-msg', e.message, true);
+  }
+}
+
+// ─── ORDERS ───────────────────────────────────────────────────────────────────
+async function loadOrders() {
+  const tbody = document.getElementById('orders-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
+  try {
+    const orders = await apiFetch('/admin/orders');
+    if (!orders || !orders.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-dim" style="padding:16px">No orders yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = orders.map(o => `
+      <tr>
+        <td class="text-dim" style="white-space:nowrap">${fmtDateTime(o.CreatedAt)}</td>
+        <td>${escHtml(o.CustomerName)}</td>
+        <td class="text-dim">${escHtml(o.CustomerEmail)}</td>
+        <td class="price">${fmtPrice(o.TotalCents)}</td>
+        <td>
+          <div class="inline-status">
+            <span class="badge badge-${o.Status}">${o.Status}</span>
+            <select onchange="updateOrderStatus('${o.ID}', this.value, this)" style="margin-left:6px">
+              ${['pending','paid','fulfilled','cancelled'].map(s => `<option value="${s}"${s===o.Status?' selected':''}>${s}</option>`).join('')}
+            </select>
+          </div>
+        </td>
+        <td>
+          <div class="order-items-list">
+            ${(o.Items||[]).map(i => `× ${i.Quantity} <span style="font-family:monospace;font-size:11px">${i.MerchItemID.slice(0,8)}…</span>`).join('<br>')}
+          </div>
+        </td>
+      </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="error-msg">${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function updateOrderStatus(id, status, selectEl) {
+  try {
+    await apiFetch('/admin/orders/' + id + '/status', {
+      method: 'PUT',
+      body: JSON.stringify({ Status: status }),
+    });
+    // Update badge in same row
+    const row = selectEl.closest('tr');
+    const badge = row.querySelector('.badge');
+    badge.className = 'badge badge-' + status;
+    badge.textContent = status;
+    showMsg('orders-msg', 'Status updated', false);
+  } catch(e) {
+    showMsg('orders-msg', e.message, true);
+    loadOrders();
+  }
+}
+
+// ─── EVENTS ───────────────────────────────────────────────────────────────────
+async function loadEvents() {
+  const tbody = document.getElementById('events-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading…</td></tr>';
+  try {
+    const events = await apiFetch('/events');
+    if (!events || !events.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-dim" style="padding:16px">No events yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = events.map(ev => `
+      <tr>
+        <td>${ev.ImageURL ? `<img class="thumb" src="${escHtml(ev.ImageURL)}" alt="">` : '<span class="text-dim">—</span>'}</td>
+        <td><strong>${escHtml(ev.Title)}</strong><div class="text-dim" style="font-size:11px;margin-top:2px">${escHtml(ev.Description||'')}</div></td>
+        <td style="white-space:nowrap">${fmtDate(ev.EventDate)}</td>
+        <td><span class="badge" style="background:#1a1a2e;color:#7c8cf8">${escHtml(ev.Type||'')}</span></td>
+        <td class="text-dim">${escHtml(ev.Location||'')}</td>
+        <td>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary btn-sm" onclick="openEventModal(${JSON.stringify(ev)})">Edit</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.ID}', '${escHtml(ev.Title)}')">Delete</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="error-msg">${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+function openEventModal(ev) {
+  editingEvent = ev ? ev.ID : null;
+  eventImageURL = ev ? (ev.ImageURL || '') : '';
+  document.getElementById('event-modal-title').textContent = ev ? 'Edit Event' : 'New Event';
+  document.getElementById('event-submit-btn').textContent = ev ? 'Save' : 'Create';
+  document.getElementById('e-title').value = ev ? ev.Title : '';
+  document.getElementById('e-desc').value = ev ? (ev.Description || '') : '';
+  document.getElementById('e-location').value = ev ? (ev.Location || '') : '';
+  document.getElementById('e-type').value = ev ? (ev.Type || 'concert') : 'concert';
+  document.getElementById('e-file-input').value = '';
+  document.getElementById('event-form-msg').innerHTML = '';
+  if (ev && ev.EventDate) {
+    document.getElementById('e-date').value = ev.EventDate.slice(0, 10);
+  } else {
+    document.getElementById('e-date').value = '';
+  }
+  renderEventPreview();
+  document.getElementById('event-modal').style.display = 'flex';
+}
+
+function renderEventPreview() {
+  const preview = document.getElementById('e-image-preview');
+  preview.innerHTML = eventImageURL
+    ? `<div class="upload-preview-item"><img src="${escHtml(eventImageURL)}" alt=""><button class="remove-img" onclick="removeEventImg()">×</button></div>`
+    : '';
+}
+
+function removeEventImg() {
+  eventImageURL = '';
+  renderEventPreview();
+}
+
+async function handleEventFile(files) {
+  if (!files.length) return;
+  const btn = document.getElementById('event-submit-btn');
+  btn.disabled = true;
+  try {
+    eventImageURL = await uploadFile(files[0]);
+    renderEventPreview();
+  } catch(e) {
+    showMsg('event-form-msg', e.message, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitEvent() {
+  const title = document.getElementById('e-title').value.trim();
+  const dateStr = document.getElementById('e-date').value;
+
+  if (!title) return showMsg('event-form-msg', 'Title is required', true);
+  if (!dateStr) return showMsg('event-form-msg', 'Date is required', true);
+
+  const body = {
+    Title: title,
+    Description: document.getElementById('e-desc').value,
+    EventDate: new Date(dateStr + 'T12:00:00Z').toISOString(),
+    Location: document.getElementById('e-location').value,
+    Type: document.getElementById('e-type').value,
+    ImageURL: eventImageURL,
+  };
+
+  try {
+    if (editingEvent) {
+      // Convert to pointer fields for update
+      const updateBody = {
+        Title: body.Title,
+        Description: body.Description || undefined,
+        EventDate: body.EventDate,
+        Location: body.Location || undefined,
+        Type: body.Type || undefined,
+        ImageURL: body.ImageURL || undefined,
+      };
+      await apiFetch('/admin/events/' + editingEvent, { method: 'PUT', body: JSON.stringify(updateBody) });
+      showMsg('events-msg', 'Event updated', false);
+    } else {
+      await apiFetch('/admin/events', { method: 'POST', body: JSON.stringify(body) });
+      showMsg('events-msg', 'Event created', false);
+    }
+    closeModal('event-modal');
+    loadEvents();
+  } catch(e) {
+    showMsg('event-form-msg', e.message, true);
+  }
+}
+
+async function deleteEvent(id, title) {
+  if (!confirm(`Delete event "${title}"?`)) return;
+  try {
+    await apiFetch('/admin/events/' + id, { method: 'DELETE' });
+    showMsg('events-msg', 'Event deleted', false);
+    loadEvents();
+  } catch(e) {
+    showMsg('events-msg', e.message, true);
+  }
+}
+
+// ─── USERS ────────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  const tbody = document.getElementById('users-tbody');
+  tbody.innerHTML = '<tr><td colspan="5" class="loading">Loading…</td></tr>';
+  try {
+    const users = await apiFetch('/admin/users');
+    if (!users || !users.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="text-dim" style="padding:16px">No users yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = users.map((u, i) => `
+      <tr>
+        <td class="text-dim">${i + 1}</td>
+        <td>${escHtml(u.Name)}</td>
+        <td><a href="https://t.me/${escHtml(u.TgUsername)}" target="_blank">@${escHtml(u.TgUsername)}</a></td>
+        <td class="text-dim price">${u.TgID}</td>
+        <td class="text-dim">${fmtDateTime(u.CreatedAt)}</td>
+      </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="error-msg">${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+// ─── Modal helpers ────────────────────────────────────────────────────────────
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+function closeOnOverlay(e, id) { if (e.target === e.currentTarget) closeModal(id); }
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadMerch();
+</script>
+</body>
+</html>

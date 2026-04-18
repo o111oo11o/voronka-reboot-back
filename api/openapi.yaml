@@ -1,0 +1,1007 @@
+openapi: 3.1.0
+info:
+  title: Voronka API
+  version: 1.0.0
+  description: |
+    REST API for the Voronka platform.
+
+    **Authentication**
+    - Public endpoints require no credentials.
+    - User-protected endpoints require `Authorization: Bearer <access_token>`.
+    - Admin endpoints require `X-Admin-Token: <token>` (value of `ADMIN_TOKEN` env var).
+
+    **Auth flow — new user**
+    1. `POST /auth/register` → receive `deeplink`
+    2. User opens deeplink in Telegram, presses Start
+    3. Browser polls `POST /auth/confirm` with the same token until it returns a `TokenPair`
+
+    **Auth flow — returning user**
+    1. `POST /auth/register` → receive `{"code_sent": true}`
+    2. User receives a 4-digit code in Telegram
+    3. `POST /auth/verify` with the code → `TokenPair`
+
+servers:
+  - url: /api/v1
+    description: Local server
+
+tags:
+  - name: Auth
+  - name: Users
+  - name: Events
+  - name: Merch
+  - name: Orders
+  - name: Admin — Upload
+  - name: Admin — Users
+  - name: Admin — Events
+  - name: Admin — Merch
+  - name: Admin — Orders
+
+# ─── Security schemes ──────────────────────────────────────────────────────────
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    AdminToken:
+      type: apiKey
+      in: header
+      name: X-Admin-Token
+
+  # ─── Schemas ─────────────────────────────────────────────────────────────────
+  schemas:
+
+    # Auth
+    RegisterRequest:
+      type: object
+      required: [name, tg_username]
+      properties:
+        name:
+          type: string
+          example: Olena Kovalenko
+        tg_username:
+          type: string
+          example: olena_k
+          description: Telegram username without the @ sign
+
+    RegisterResponse:
+      type: object
+      description: Exactly one of `deeplink` or `code_sent` will be present.
+      properties:
+        deeplink:
+          type: string
+          description: Telegram deeplink for new-user registration (open in browser).
+          example: "https://t.me/voronka_bot?start=abc123"
+        code_sent:
+          type: boolean
+          description: True when a 4-digit code was sent to the existing user's Telegram.
+          example: true
+
+    VerifyRequest:
+      type: object
+      required: [tg_username, code]
+      properties:
+        tg_username:
+          type: string
+          example: olena_k
+        code:
+          type: string
+          minLength: 4
+          maxLength: 4
+          example: "7421"
+
+    ConfirmRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: The token from the deeplink (same value used to open Telegram).
+          example: abc123xyz
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+          description: Short-lived JWT (15 min).
+        refresh_token:
+          type: string
+          description: Long-lived JWT (30 days). Single-use — rotated on each refresh.
+
+    # User
+    User:
+      type: object
+      properties:
+        ID:
+          type: string
+          format: uuid
+        TgID:
+          type: integer
+          format: int64
+          description: Telegram user ID.
+        TgUsername:
+          type: string
+        Name:
+          type: string
+        CreatedAt:
+          type: string
+          format: date-time
+        UpdatedAt:
+          type: string
+          format: date-time
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        Name:
+          type: string
+          example: New Name
+
+    # Event
+    Event:
+      type: object
+      properties:
+        ID:
+          type: string
+          format: uuid
+        Title:
+          type: string
+        Description:
+          type: string
+        EventDate:
+          type: string
+          format: date-time
+          description: Date of the event. Only one event per calendar day is allowed.
+        Location:
+          type: string
+        Type:
+          type: string
+          enum: [concert, meetup, workshop, other]
+        ImageURL:
+          type: string
+          format: uri
+        CreatedAt:
+          type: string
+          format: date-time
+        UpdatedAt:
+          type: string
+          format: date-time
+
+    CreateEventRequest:
+      type: object
+      required: [Title, EventDate]
+      properties:
+        Title:
+          type: string
+          example: Summer Concert
+        Description:
+          type: string
+        EventDate:
+          type: string
+          format: date-time
+          example: "2026-07-15T12:00:00Z"
+        Location:
+          type: string
+          example: Kyiv, Bel Etage
+        Type:
+          type: string
+          enum: [concert, meetup, workshop, other]
+          example: concert
+        ImageURL:
+          type: string
+          format: uri
+          example: /uploads/abc123.jpg
+
+    UpdateEventRequest:
+      type: object
+      description: All fields are optional. Only provided fields are updated.
+      properties:
+        Title:
+          type: string
+        Description:
+          type: string
+        EventDate:
+          type: string
+          format: date-time
+        Location:
+          type: string
+        Type:
+          type: string
+          enum: [concert, meetup, workshop, other]
+        ImageURL:
+          type: string
+          format: uri
+
+    # Merch
+    MerchItem:
+      type: object
+      properties:
+        ID:
+          type: string
+          format: uuid
+        Name:
+          type: string
+        Description:
+          type: string
+        PriceCents:
+          type: integer
+          format: int64
+          description: Price in smallest currency unit (hundredths).
+          example: 49900
+        Stock:
+          type: integer
+          description: Available quantity. Never goes below 0.
+        ImageURLs:
+          type: array
+          items:
+            type: string
+            format: uri
+        CreatedAt:
+          type: string
+          format: date-time
+        UpdatedAt:
+          type: string
+          format: date-time
+
+    CreateMerchItemRequest:
+      type: object
+      required: [Name, PriceCents, Stock]
+      properties:
+        Name:
+          type: string
+          example: Black T-Shirt
+        Description:
+          type: string
+        PriceCents:
+          type: integer
+          format: int64
+          example: 49900
+        Stock:
+          type: integer
+          example: 50
+        ImageURLs:
+          type: array
+          items:
+            type: string
+            format: uri
+
+    UpdateMerchItemRequest:
+      type: object
+      description: All fields are optional. Only provided fields are updated.
+      properties:
+        Name:
+          type: string
+        Description:
+          type: string
+        PriceCents:
+          type: integer
+          format: int64
+        Stock:
+          type: integer
+          description: Absolute value to set (use for restock or adjustment).
+        ImageURLs:
+          type: array
+          items:
+            type: string
+            format: uri
+
+    # Orders
+    OrderStatus:
+      type: string
+      enum: [pending, paid, fulfilled, cancelled]
+
+    OrderItem:
+      type: object
+      properties:
+        ID:
+          type: string
+          format: uuid
+        OrderID:
+          type: string
+          format: uuid
+        MerchItemID:
+          type: string
+          format: uuid
+        Quantity:
+          type: integer
+        PriceAtTimeCents:
+          type: integer
+          format: int64
+          description: Price snapshot at the time of purchase.
+
+    Order:
+      type: object
+      properties:
+        ID:
+          type: string
+          format: uuid
+        CustomerName:
+          type: string
+        CustomerEmail:
+          type: string
+          format: email
+        UserID:
+          type: string
+          format: uuid
+          nullable: true
+          description: Set when the order was placed by an authenticated user.
+        Status:
+          $ref: '#/components/schemas/OrderStatus'
+        TotalCents:
+          type: integer
+          format: int64
+        Items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        CreatedAt:
+          type: string
+          format: date-time
+        UpdatedAt:
+          type: string
+          format: date-time
+
+    OrderLineItem:
+      type: object
+      required: [MerchItemID, Quantity]
+      properties:
+        MerchItemID:
+          type: string
+          format: uuid
+        Quantity:
+          type: integer
+          minimum: 1
+
+    PlaceOrderRequest:
+      type: object
+      required: [CustomerName, CustomerEmail, Items]
+      properties:
+        CustomerName:
+          type: string
+          example: Olena Kovalenko
+        CustomerEmail:
+          type: string
+          format: email
+          example: olena@example.com
+        UserID:
+          type: string
+          format: uuid
+          nullable: true
+        Items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrderLineItem'
+
+    UpdateOrderStatusRequest:
+      type: object
+      required: [Status]
+      properties:
+        Status:
+          $ref: '#/components/schemas/OrderStatus'
+
+    # Misc
+    UploadResponse:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Relative URL of the uploaded file, e.g. `/uploads/<uuid>.jpg`.
+          example: /uploads/550e8400-e29b-41d4-a716-446655440000.jpg
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: not found
+
+# ─── Paths ────────────────────────────────────────────────────────────────────
+paths:
+
+  # ── Auth ──────────────────────────────────────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register or request login code
+      description: |
+        - **New user** (unknown `tg_username`): creates a pending registration and returns a Telegram deeplink.
+        - **Existing user** (known `tg_username`): sends a 4-digit login code to their Telegram and returns `{"code_sent": true}`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+              examples:
+                new_user:
+                  summary: New user
+                  value: { deeplink: "https://t.me/voronka_bot?start=abc123" }
+                returning_user:
+                  summary: Returning user
+                  value: { code_sent: true }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/confirm:
+    post:
+      tags: [Auth]
+      summary: Poll for registration confirmation
+      description: |
+        Browser polls this after the user opens the Telegram deeplink.
+        Returns `404` until the bot confirms the `/start` command.
+        The token is single-use — it is deleted after the first successful claim.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmRequest'
+      responses:
+        '200':
+          description: Confirmed — returns token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Not yet confirmed (keep polling)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/verify:
+    post:
+      tags: [Auth]
+      summary: Submit 4-digit login code (returning users)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyRequest'
+      responses:
+        '200':
+          description: Code accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: User not found or code expired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Rotate refresh token
+      description: |
+        Exchanges a valid refresh token for a new `TokenPair`.
+        The old refresh token is immediately invalidated (single-use rotation).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── Users ─────────────────────────────────────────────────────────────────────
+  /users:
+    get:
+      tags: [Users]
+      summary: List users
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UUIDPath'
+    get:
+      tags: [Users]
+      summary: Get user by ID
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Users]
+      summary: Update user
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Users]
+      summary: Delete user
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Events ────────────────────────────────────────────────────────────────────
+  /events:
+    get:
+      tags: [Events]
+      summary: List events
+      description: Returns up to 50 upcoming events, ordered by date.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+
+  /events/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UUIDPath'
+    get:
+      tags: [Events]
+      summary: Get event by ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Merch ─────────────────────────────────────────────────────────────────────
+  /merch:
+    get:
+      tags: [Merch]
+      summary: List in-stock merch items
+      description: Returns up to 50 items where `Stock > 0`.
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MerchItem'
+
+  /merch/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UUIDPath'
+    get:
+      tags: [Merch]
+      summary: Get merch item by ID
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchItem'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Orders ────────────────────────────────────────────────────────────────────
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Place an order
+      description: |
+        Creates an order and atomically decrements stock for each item.
+        Fails with `409 Conflict` if any item has insufficient stock.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceOrderRequest'
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Insufficient stock for one or more items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Admin — Upload ────────────────────────────────────────────────────────────
+  /admin/upload:
+    post:
+      tags: [Admin — Upload]
+      summary: Upload an image
+      description: |
+        Accepts a single image file (jpeg, png, gif, webp) as `multipart/form-data`.
+        Returns the relative URL to use in `ImageURL` / `ImageURLs` fields.
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Uploaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── Admin — Users ─────────────────────────────────────────────────────────────
+  /admin/users:
+    get:
+      tags: [Admin — Users]
+      summary: List all registered users
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── Admin — Events ────────────────────────────────────────────────────────────
+  /admin/events:
+    post:
+      tags: [Admin — Events]
+      summary: Create event
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: An event already exists on that date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /admin/events/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UUIDPath'
+    put:
+      tags: [Admin — Events]
+      summary: Update event
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Another event already exists on the requested date
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Admin — Events]
+      summary: Delete event
+      security:
+        - AdminToken: []
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Admin — Merch ─────────────────────────────────────────────────────────────
+  /admin/merch:
+    get:
+      tags: [Admin — Merch]
+      summary: List all merch items (including out-of-stock)
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MerchItem'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Admin — Merch]
+      summary: Create merch item
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMerchItemRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/merch/{id}:
+    parameters:
+      - $ref: '#/components/parameters/UUIDPath'
+    put:
+      tags: [Admin — Merch]
+      summary: Update merch item
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMerchItemRequest'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Admin — Merch]
+      summary: Delete merch item
+      security:
+        - AdminToken: []
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Admin — Orders ────────────────────────────────────────────────────────────
+  /admin/orders:
+    get:
+      tags: [Admin — Orders]
+      summary: List all orders
+      security:
+        - AdminToken: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/orders/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/UUIDPath'
+    put:
+      tags: [Admin — Orders]
+      summary: Update order status
+      security:
+        - AdminToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderStatusRequest'
+      responses:
+        '200':
+          description: Updated order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+# ─── Shared responses & parameters ───────────────────────────────────────────
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Valid credentials but insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  parameters:
+    UUIDPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
