@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"net/http"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"voronka/internal/handler/rest/middleware"
@@ -108,6 +109,8 @@ func NewRouter(
 			}
 		}
 	}
+
+	api.Use(cors.Default())
 
 	// WebSocket
 	chatHandler := ws.NewChatHandler(hub)
