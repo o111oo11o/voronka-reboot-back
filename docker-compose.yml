@@ -29,7 +29,7 @@ services:
     volumes:
       - uploads:/app/uploads
     ports:
-      - "8080:8080"
+      - "9080:8080"
 
   front:
     image: ghcr.io/o111oo11o/voronka-front:latest
@@ -37,7 +37,7 @@ services:
     depends_on:
       - back
     ports:
-      - "3000:3000"
+      - "3001:3000"
 
 volumes:
   postgres_data:

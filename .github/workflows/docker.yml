@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: o111oo11o/voronka-front
+  IMAGE_NAME: o111oo11o/voronka-back
 
 jobs:
   build-and-push:
