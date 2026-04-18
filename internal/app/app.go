@@ -40,7 +40,9 @@ func newApp(cfg *config.Config, router *gin.Engine, hub *ws.Hub, bot *telegram.B
 // Start launches all goroutines. Returns immediately.
 func (a *App) Start(ctx context.Context) {
 	go a.hub.Run()
-	go a.bot.Start(ctx)
+	if a.bot != nil {
+		go a.bot.Start(ctx)
+	}
 
 	go func() {
 		slog.Info("http server listening", "addr", a.server.Addr)

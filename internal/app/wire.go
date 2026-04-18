@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"voronka/internal/config"
 	"voronka/internal/handler/rest"
@@ -35,15 +36,19 @@ func New(ctx context.Context, cfg *config.Config) (*App, error) {
 
 	bot, err := telegram.NewBot(cfg.Telegram, userSvc, chatSvc)
 	if err != nil {
-		return nil, fmt.Errorf("telegram bot: %w", err)
+		slog.Warn("telegram bot unavailable, auth flows requiring Telegram will not work", "err", err)
 	}
 
 	// Auth service gets the bot as its MessageSender; bot name comes from the live API.
-	authSvc := service.NewAuthService(userRepo, authRepo, cfg.JWT.Secret, bot)
-	authSvc.SetBotName(bot.Username())
-
-	// Wire auth back into the bot (SetAuth is called before bot.Start).
-	bot.SetAuth(authSvc)
+	var sender service.MessageSender
+	if bot != nil {
+		sender = bot
+	}
+	authSvc := service.NewAuthService(userRepo, authRepo, cfg.JWT.Secret, sender)
+	if bot != nil {
+		authSvc.SetBotName(bot.Username())
+		bot.SetAuth(authSvc)
+	}
 
 	// Remaining services
 	eventSvc := service.NewEventService(eventRepo)

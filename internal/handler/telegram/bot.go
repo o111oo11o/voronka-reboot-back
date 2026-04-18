@@ -23,7 +23,15 @@ type Bot struct {
 // NewBot creates the bot and authenticates with Telegram.
 // auth must be set later via SetAuth (after the auth service is created with the bot's username).
 func NewBot(cfg config.TelegramConfig, users service.UserService, chat service.ChatService) (*Bot, error) {
-	api, err := tgbotapi.NewBotAPI(cfg.Token)
+	var (
+		api *tgbotapi.BotAPI
+		err error
+	)
+	if cfg.APIEndpoint != "" {
+		api, err = tgbotapi.NewBotAPIWithAPIEndpoint(cfg.Token, cfg.APIEndpoint)
+	} else {
+		api, err = tgbotapi.NewBotAPI(cfg.Token)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("create telegram bot: %w", err)
 	}

@@ -33,8 +33,9 @@ type PostgresConfig struct {
 }
 
 type TelegramConfig struct {
-	Token string `mapstructure:"token"`
-	Debug bool   `mapstructure:"debug"`
+	Token       string `mapstructure:"token"`
+	Debug       bool   `mapstructure:"debug"`
+	APIEndpoint string `mapstructure:"api_endpoint"`
 }
 
 func Load() (*Config, error) {
@@ -66,6 +67,7 @@ func Load() (*Config, error) {
 	_ = v.BindEnv("postgres.dsn", "POSTGRES_DSN")
 	_ = v.BindEnv("telegram.token", "TELEGRAM_TOKEN")
 	_ = v.BindEnv("telegram.debug", "TELEGRAM_DEBUG")
+	_ = v.BindEnv("telegram.api_endpoint", "TELEGRAM_API_ENDPOINT")
 	_ = v.BindEnv("admin_token", "ADMIN_TOKEN")
 	_ = v.BindEnv("jwt.secret", "JWT_SECRET")
 	_ = v.BindEnv("uploads_dir", "UPLOADS_DIR")
@@ -92,9 +94,6 @@ func Load() (*Config, error) {
 func validate(cfg *Config) error {
 	if cfg.Postgres.DSN == "" {
 		return fmt.Errorf("POSTGRES_DSN is required")
-	}
-	if cfg.Telegram.Token == "" {
-		return fmt.Errorf("TELEGRAM_TOKEN is required")
 	}
 	if cfg.JWT.Secret == "" {
 		return fmt.Errorf("JWT_SECRET is required")
