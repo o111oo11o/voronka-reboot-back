@@ -14,12 +14,29 @@ services:
       timeout: 5s
       retries: 10
 
+  migrate:
+    image: ${BACK_IMAGE:-ghcr.io/o111oo11o/voronka-back:latest}
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://voronka:${POSTGRES_PASSWORD:-voronka}@db:5432/voronka?sslmode=disable
+      GOOSE_MIGRATION_DIR: /app/db/migrations
+    entrypoint: ["/app/goose"]
+    command: ["up"]
+    restart: "no"
+
   back:
+    image: ${BACK_IMAGE:-ghcr.io/o111oo11o/voronka-back:latest}
     build: .
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     environment:
       POSTGRES_DSN: postgres://voronka:${POSTGRES_PASSWORD:-voronka}@db:5432/voronka?sslmode=disable
       TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
