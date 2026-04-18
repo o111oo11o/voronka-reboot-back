@@ -2,9 +2,12 @@ package middleware
 
 import (
 	"crypto/subtle"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"voronka/internal/platform/logger"
 )
 
 // Admin checks the X-Admin-Token header against the configured token.
@@ -18,6 +21,9 @@ func Admin(token string) gin.HandlerFunc {
 			return
 		}
 		if subtle.ConstantTimeCompare([]byte(got), expected) != 1 {
+			logger.FromContext(c.Request.Context()).Warn("admin: rejected token",
+				slog.String("client_ip", c.ClientIP()),
+				slog.String("path", c.Request.URL.Path))
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "invalid admin token"})
 			return
 		}

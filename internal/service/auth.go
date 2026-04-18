@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"voronka/internal/domain"
+	"voronka/internal/platform/logger"
 	"voronka/internal/repository"
 )
 
@@ -79,8 +81,11 @@ func (s *authService) Register(ctx context.Context, req domain.RegisterRequest) 
 		if err := s.sender.SendMessage(ctx, existing.TgID,
 			fmt.Sprintf("Your login code: %s\n(valid for 5 minutes)", code),
 		); err != nil {
-			// Non-fatal: code is stored; user can retry.
-			_ = err
+			// Non-fatal: code is stored; user can retry. Surface for ops visibility.
+			logger.FromContext(ctx).Warn("auth: deliver login code",
+				slog.String("err", err.Error()),
+				slog.String("user_id", existing.ID.String()),
+			)
 		}
 		return &domain.RegisterResponse{CodeSent: true}, nil
 	}

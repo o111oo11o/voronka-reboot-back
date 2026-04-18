@@ -1,21 +1,28 @@
 package config
 
 import (
+	"errors"
 	"fmt"
-	"github.com/joho/godotenv"
-	"log"
+	"log/slog"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
 type Config struct {
-	HTTP        HTTPConfig
-	Postgres    PostgresConfig
-	Telegram    TelegramConfig
-	JWT         JWTConfig
-	AdminToken  string `mapstructure:"admin_token"`
-	UploadsDir  string `mapstructure:"uploads_dir"`
+	HTTP       HTTPConfig
+	Postgres   PostgresConfig
+	Telegram   TelegramConfig
+	JWT        JWTConfig
+	Log        LogConfig
+	AdminToken string `mapstructure:"admin_token"`
+	UploadsDir string `mapstructure:"uploads_dir"`
+}
+
+type LogConfig struct {
+	Level  string `mapstructure:"level"`  // debug|info|warn|error
+	Format string `mapstructure:"format"` // json|text
 }
 
 type JWTConfig struct {
@@ -40,7 +47,7 @@ type TelegramConfig struct {
 
 func Load() (*Config, error) {
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found")
+		slog.Debug("no .env file found, relying on environment", "err", err)
 	}
 
 	v := viper.New()
@@ -59,6 +66,8 @@ func Load() (*Config, error) {
 	v.SetDefault("http.write_timeout", "15s")
 	v.SetDefault("telegram.debug", false)
 	v.SetDefault("uploads_dir", "./uploads")
+	v.SetDefault("log.level", "info")
+	v.SetDefault("log.format", "json")
 
 	// Bind explicit env keys to nested config paths
 	_ = v.BindEnv("http.port", "HTTP_PORT")
@@ -71,10 +80,13 @@ func Load() (*Config, error) {
 	_ = v.BindEnv("admin_token", "ADMIN_TOKEN")
 	_ = v.BindEnv("jwt.secret", "JWT_SECRET")
 	_ = v.BindEnv("uploads_dir", "UPLOADS_DIR")
+	_ = v.BindEnv("log.level", "LOG_LEVEL")
+	_ = v.BindEnv("log.format", "LOG_FORMAT")
 
 	// Config file is optional — ignore not-found errors
 	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+		var notFoundErr viper.ConfigFileNotFoundError
+		if !errors.As(err, &notFoundErr) {
 			return nil, fmt.Errorf("read config: %w", err)
 		}
 	}

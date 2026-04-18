@@ -2,12 +2,14 @@ package rest
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
 	"voronka/internal/domain"
+	"voronka/internal/platform/logger"
 	"voronka/internal/service"
 )
 
@@ -102,16 +104,24 @@ func (h *userHandler) list(c *gin.Context) {
 }
 
 func writeError(c *gin.Context, err error) {
+	log := logger.FromContext(c.Request.Context())
 	switch {
 	case errors.Is(err, domain.ErrNotFound):
+		log.Debug("not found", slog.String("err", err.Error()))
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 	case errors.Is(err, domain.ErrConflict):
+		log.Info("conflict", slog.String("err", err.Error()))
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case errors.Is(err, domain.ErrForbidden):
+		log.Info("forbidden", slog.String("err", err.Error()))
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, domain.ErrBadRequest):
+		log.Info("bad request", slog.String("err", err.Error()))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	default:
+		// Unexpected errors: log full detail server-side, return opaque client message.
+		_ = c.Error(err)
+		log.Error("internal server error", slog.String("err", err.Error()))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal server error"})
 	}
 }

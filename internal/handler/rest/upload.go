@@ -2,6 +2,7 @@ package rest
 
 import (
 	"io"
+	"log/slog"
 	"mime"
 	"net/http"
 	"os"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+
+	"voronka/internal/platform/logger"
 )
 
 type uploadHandler struct {
@@ -29,8 +32,10 @@ var allowedImageMIME = map[string]string{
 }
 
 func (h *uploadHandler) upload(c *gin.Context) {
+	log := logger.FromContext(c.Request.Context())
 	file, header, err := c.Request.FormFile("file")
 	if err != nil {
+		log.Info("upload: missing file", slog.String("err", err.Error()))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "file is required"})
 		return
 	}
@@ -49,14 +54,17 @@ func (h *uploadHandler) upload(c *gin.Context) {
 	}
 
 	filename := uuid.New().String() + ext
-	dst, err := os.Create(filepath.Join(h.dir, filename))
+	path := filepath.Join(h.dir, filename)
+	dst, err := os.Create(path)
 	if err != nil {
+		log.Error("upload: create destination file", slog.String("err", err.Error()), slog.String("path", path))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save file"})
 		return
 	}
 	defer dst.Close()
 
 	if _, err = io.Copy(dst, file); err != nil {
+		log.Error("upload: write file", slog.String("err", err.Error()), slog.String("path", path))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write file"})
 		return
 	}

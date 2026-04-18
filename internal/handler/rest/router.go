@@ -25,8 +25,9 @@ func NewRouter(
 	uploadsDir string,
 ) *gin.Engine {
 	r := gin.New()
-	r.Use(gin.Recovery())
-	r.Use(gin.Logger())
+	r.Use(middleware.RequestID())
+	r.Use(middleware.Logger())
+	r.Use(middleware.Recovery())
 
 	r.GET("/healthz", func(c *gin.Context) { c.Status(200) })
 
