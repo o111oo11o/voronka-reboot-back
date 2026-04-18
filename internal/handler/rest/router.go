@@ -29,6 +29,7 @@ func NewRouter(
 	r.Use(middleware.RequestID())
 	r.Use(middleware.Logger())
 	r.Use(middleware.Recovery())
+	r.Use(cors.Default())
 
 	r.GET("/healthz", func(c *gin.Context) { c.Status(200) })
 
@@ -109,8 +110,6 @@ func NewRouter(
 			}
 		}
 	}
-
-	api.Use(cors.Default())
 
 	// WebSocket
 	chatHandler := ws.NewChatHandler(hub)
