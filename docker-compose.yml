@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: voronka
+      POSTGRES_USER: voronka
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-voronka}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voronka -d voronka"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  back:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_DSN: postgres://voronka:${POSTGRES_PASSWORD:-voronka}@db:5432/voronka?sslmode=disable
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+      JWT_SECRET: ${JWT_SECRET}
+      ADMIN_TOKEN: ${ADMIN_TOKEN}
+      HTTP_PORT: 8080
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "8080:8080"
+
+  front:
+    image: ghcr.io/o111oo11o/voronka-front:latest
+    restart: unless-stopped
+    depends_on:
+      - back
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  uploads:
